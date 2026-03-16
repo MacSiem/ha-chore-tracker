@@ -9,7 +9,7 @@ class HaChoreTracker extends HTMLElement {
       title: 'Chore Tracker',
       members: [
         { name: 'Person 1', color: '#4CAF50' },
-        { name: 'Person 2', color: 'var(--primary-color, #03a9f4)' }
+        { name: 'Person 2', color: '#2196F3' }
       ]
     };
   }
@@ -41,6 +41,366 @@ class HaChoreTracker extends HTMLElement {
   render() {
     this.shadowRoot.innerHTML = `
       <style>
+        * {
+          box-sizing: border-box;
+        }
+
+        :host {
+          --primary-color: var(--ha-card-background, #ffffff);
+          --text-color: var(--primary-text-color, #212121);
+          --secondary-text: var(--secondary-text-color, #727272);
+          --border-color: var(--divider-color, #e0e0e0);
+          --ha-card-border-radius: 12px;
+        }
+
+        .card {
+          background: var(--primary-color);
+          color: var(--text-color);
+          border-radius: var(--ha-card-border-radius);
+          padding: 16px;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .card-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 16px;
+          padding-bottom: 12px;
+          border-bottom: 2px solid var(--border-color);
+        }
+
+        .title {
+          font-size: 20px;
+          font-weight: 600;
+          margin: 0;
+        }
+
+        .tabs {
+          display: flex;
+          gap: 8px;
+          margin-bottom: 16px;
+          border-bottom: 1px solid var(--border-color);
+        }
+
+        .tab-btn {
+          padding: 8px 16px;
+          background: none;
+          border: none;
+          color: var(--secondary-text);
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 500;
+          border-bottom: 3px solid transparent;
+          transition: all 0.3s ease;
+        }
+
+        .tab-btn.active {
+          color: var(--text-color);
+          border-bottom-color: var(--primary-color-rgb, #3498db);
+        }
+
+        .tab-btn:hover {
+          color: var(--text-color);
+        }
+
+        .tab-content {
+          display: none;
+        }
+
+        .tab-content.active {
+          display: block;
+        }
+
+        /* Board View */
+        .board {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+          gap: 16px;
+        }
+
+        .column {
+          background: var(--ha-card-background, #f5f5f5);
+          border-radius: 8px;
+          padding: 12px;
+          min-height: 400px;
+        }
+
+        .column-header {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 12px;
+          font-weight: 600;
+          font-size: 14px;
+          color: var(--text-color);
+        }
+
+        .column-count {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 24px;
+          height: 24px;
+          background: var(--border-color);
+          border-radius: 50%;
+          font-size: 12px;
+          font-weight: bold;
+        }
+
+        .chore-card {
+          background: white;
+          border: 1px solid var(--border-color);
+          border-radius: 6px;
+          padding: 12px;
+          margin-bottom: 10px;
+          cursor: grab;
+          transition: all 0.2s ease;
+          border-left: 4px solid var(--border-color);
+        }
+
+        .chore-card:hover {
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .chore-card.priority-high {
+          border-left-color: #ff5252;
+        }
+
+        .chore-card.priority-medium {
+          border-left-color: #ffa726;
+        }
+
+        .chore-card.priority-low {
+          border-left-color: #66bb6a;
+        }
+
+        .chore-title {
+          font-weight: 600;
+          margin: 0 0 6px 0;
+          font-size: 14px;
+        }
+
+        .chore-meta {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          font-size: 12px;
+          color: var(--secondary-text);
+          margin-top: 8px;
+        }
+
+        .chore-assignee {
+          padding: 2px 8px;
+          border-radius: 12px;
+          font-size: 12px;
+          color: white;
+          font-weight: 500;
+        }
+
+        .chore-actions {
+          display: flex;
+          gap: 4px;
+          margin-top: 8px;
+        }
+
+        .btn-small {
+          padding: 4px 8px;
+          font-size: 11px;
+          border: 1px solid var(--border-color);
+          background: none;
+          border-radius: 4px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .btn-small:hover {
+          background: var(--border-color);
+        }
+
+        /* Add Form */
+        .add-form {
+          background: var(--ha-card-background, #f9f9f9);
+          padding: 16px;
+          border-radius: 8px;
+          margin-bottom: 16px;
+        }
+
+        .form-group {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+          margin-bottom: 12px;
+        }
+
+        .form-group.full {
+          grid-column: 1 / -1;
+        }
+
+        label {
+          display: block;
+          font-size: 12px;
+          font-weight: 600;
+          margin-bottom: 4px;
+          color: var(--text-color);
+        }
+
+        input[type="text"],
+        input[type="number"],
+        select {
+          width: 100%;
+          padding: 8px;
+          border: 1px solid var(--border-color);
+          border-radius: 4px;
+          font-size: 13px;
+          background: white;
+          color: var(--text-color);
+        }
+
+        input[type="text"]:focus,
+        input[type="number"]:focus,
+        select:focus {
+          outline: none;
+          border-color: #3498db;
+          box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.1);
+        }
+
+        .btn-primary {
+          grid-column: 1 / -1;
+          padding: 10px 16px;
+          background: #3498db;
+          color: white;
+          border: none;
+          border-radius: 6px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .btn-primary:hover {
+          background: #2980b9;
+        }
+
+        /* Schedule View */
+        .schedule {
+          overflow-x: auto;
+        }
+
+        .week-grid {
+          display: grid;
+          grid-template-columns: 120px repeat(7, 1fr);
+          gap: 1px;
+          background: var(--border-color);
+          border-radius: 8px;
+          overflow: hidden;
+        }
+
+        .week-cell {
+          background: white;
+          padding: 12px;
+          min-height: 100px;
+          font-size: 12px;
+        }
+
+        .week-header {
+          background: var(--ha-card-background, #f5f5f5);
+          font-weight: 600;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .chore-item {
+          background: #e3f2fd;
+          padding: 4px 6px;
+          border-radius: 3px;
+          margin-bottom: 4px;
+          font-size: 11px;
+          color: #1976d2;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        /* Stats View */
+        .stats-container {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 16px;
+          margin-bottom: 20px;
+        }
+
+        .stat-card {
+          background: var(--ha-card-background, #f5f5f5);
+          padding: 16px;
+          border-radius: 8px;
+          text-align: center;
+        }
+
+        .stat-value {
+          font-size: 28px;
+          font-weight: bold;
+          color: #3498db;
+          margin: 8px 0;
+        }
+
+        .stat-label {
+          font-size: 12px;
+          color: var(--secondary-text);
+          font-weight: 500;
+        }
+
+        .leaderboard {
+          background: white;
+          border: 1px solid var(--border-color);
+          border-radius: 8px;
+          overflow: hidden;
+        }
+
+        .leaderboard-row {
+          display: grid;
+          grid-template-columns: 40px 1fr auto auto;
+          align-items: center;
+          padding: 12px 16px;
+          border-bottom: 1px solid var(--border-color);
+          font-size: 13px;
+        }
+
+        .leaderboard-row:last-child {
+          border-bottom: none;
+        }
+
+        .rank {
+          font-weight: bold;
+          font-size: 16px;
+        }
+
+        .name {
+          font-weight: 500;
+        }
+
+        .streak {
+          color: #ff9800;
+          font-weight: 600;
+        }
+
+        .completion {
+          color: #66bb6a;
+          font-weight: 600;
+        }
+
+        .empty-state {
+          text-align: center;
+          padding: 40px 20px;
+          color: var(--secondary-text);
+        }
+
+        .emoji {
+          margin-right: 4px;
+        }
+      
+/* === Modern Bento Light Mode === */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
@@ -334,13 +694,13 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
       <div class="card">
         <div class="card-header">
-          <h2 class="title">${this.config.title || 'Chore Tracker'}</h2>
+          <h2 class="title">🏠 ${this.config.title || 'Chore Tracker'}</h2>
         </div>
 
         <div class="tabs">
-          <button class="tab-btn active" data-tab="board">?? Board</button>
-          <button class="tab-btn" data-tab="schedule">?? Schedule</button>
-          <button class="tab-btn" data-tab="stats">?? Stats</button>
+          <button class="tab-btn active" data-tab="board">📋 Board</button>
+          <button class="tab-btn" data-tab="schedule">📅 Schedule</button>
+          <button class="tab-btn" data-tab="stats">🏆 Stats</button>
         </div>
 
         <!-- Board Tab -->
@@ -361,12 +721,12 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
               <div>
                 <label>Room/Area</label>
                 <select id="chore-room">
-                  <option value="Kitchen">?? Kitchen</option>
-                  <option value="Bathroom">?? Bathroom</option>
-                  <option value="Bedroom">??? Bedroom</option>
-                  <option value="Living">??? Living Room</option>
-                  <option value="Yard">?? Yard</option>
-                  <option value="General">?? General</option>
+                  <option value="Kitchen">🍳 Kitchen</option>
+                  <option value="Bathroom">🚿 Bathroom</option>
+                  <option value="Bedroom">🛏️ Bedroom</option>
+                  <option value="Living">🛋️ Living Room</option>
+                  <option value="Yard">🌳 Yard</option>
+                  <option value="General">📌 General</option>
                 </select>
               </div>
             </div>
@@ -384,32 +744,32 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
               <div>
                 <label>Priority</label>
                 <select id="chore-priority">
-                  <option value="low">Low ??</option>
-                  <option value="medium">Medium ??</option>
-                  <option value="high">High ??</option>
+                  <option value="low">Low 🟢</option>
+                  <option value="medium">Medium 🟡</option>
+                  <option value="high">High 🔴</option>
                 </select>
               </div>
             </div>
 
-            <button class="btn-primary" id="add-btn">? Add Chore</button>
+            <button class="btn-primary" id="add-btn">➕ Add Chore</button>
           </div>
 
           <div class="board" id="board">
             <div class="column" data-status="todo">
               <div class="column-header">
-                <span>?? To Do</span>
+                <span>📝 To Do</span>
                 <div class="column-count">0</div>
               </div>
             </div>
             <div class="column" data-status="in-progress">
               <div class="column-header">
-                <span>? In Progress</span>
+                <span>⏳ In Progress</span>
                 <div class="column-count">0</div>
               </div>
             </div>
             <div class="column" data-status="done">
               <div class="column-header">
-                <span>? Done</span>
+                <span>✅ Done</span>
                 <div class="column-count">0</div>
               </div>
             </div>
@@ -420,7 +780,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         <div class="tab-content" id="schedule-tab">
           <div class="schedule" id="schedule"></div>
           <div id="empty-schedule" class="empty-state" style="display:none;">
-            ?? No chores scheduled yet. Add chores to see the weekly schedule.
+            📭 No chores scheduled yet. Add chores to see the weekly schedule.
           </div>
         </div>
 
@@ -429,7 +789,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           <div class="stats-container" id="stats-container"></div>
           <div class="leaderboard" id="leaderboard"></div>
           <div id="empty-stats" class="empty-state" style="display:none;">
-            ?? No statistics available yet. Complete chores to see stats.
+            📊 No statistics available yet. Complete chores to see stats.
           </div>
         </div>
       </div>
@@ -541,13 +901,13 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
             <span class="chore-assignee" style="background-color: ${this.getMemberColor(chore.assignee)}">${chore.assignee}</span>
             <span>${this.getRoomEmoji(chore.room)}</span>
           </div>
-          <div style="font-size: 11px; color: var(--secondary-text-color, #9e9e9e); margin-top: 6px;">
+          <div style="font-size: 11px; color: var(--secondary-text); margin-top: 6px;">
             ${this.getFrequencyLabel(chore.frequency)} • ${chore.priority.charAt(0).toUpperCase() + chore.priority.slice(1)}
           </div>
           <div class="chore-actions">
-            ${status !== 'done' ? `<button class="btn-small" data-action="next">Next ›</button>` : ''}
-            ${status !== 'todo' ? `<button class="btn-small" data-action="prev">‹ Back</button>` : ''}
-            <button class="btn-small" data-action="delete">???</button>
+            ${status !== 'done' ? `<button class="btn-small" data-action="next">Next →</button>` : ''}
+            ${status !== 'todo' ? `<button class="btn-small" data-action="prev">← Back</button>` : ''}
+            <button class="btn-small" data-action="delete">🗑️</button>
           </div>
         </div>
       `).join('');
@@ -630,19 +990,19 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
     statsEl.innerHTML = `
       <div class="stat-card">
-        <div class="stat-label">?? Total Chores</div>
+        <div class="stat-label">📋 Total Chores</div>
         <div class="stat-value">${totalChores}</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">? Completed</div>
+        <div class="stat-label">✅ Completed</div>
         <div class="stat-value">${completedChores}</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">?? Completion Rate</div>
+        <div class="stat-label">📊 Completion Rate</div>
         <div class="stat-value">${overallCompletion}%</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">?? Active Members</div>
+        <div class="stat-label">👥 Active Members</div>
         <div class="stat-value">${this.members.length}</div>
       </div>
     `;
@@ -661,7 +1021,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         <div class="rank">#${index + 1}</div>
         <div class="name">${entry[0]}</div>
         <div class="completion">${entry[1].completed} done</div>
-        <div class="streak">?? ${entry[1].streak}</div>
+        <div class="streak">🔥 ${entry[1].streak}</div>
       </div>
     `).join('');
   }
@@ -673,14 +1033,14 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
   getRoomEmoji(room) {
     const emojis = {
-      'Kitchen': '??',
-      'Bathroom': '??',
-      'Bedroom': '???',
-      'Living': '???',
-      'Yard': '??',
-      'General': '??'
+      'Kitchen': '🍳',
+      'Bathroom': '🚿',
+      'Bedroom': '🛏️',
+      'Living': '🛋️',
+      'Yard': '🌳',
+      'General': '📌'
     };
-    return emojis[room] || '??';
+    return emojis[room] || '📌';
   }
 
   getFrequencyLabel(freq) {
