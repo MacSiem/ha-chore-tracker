@@ -28,12 +28,41 @@ class HaChoreTracker extends HTMLElement {
     this.activeTab = 'board';
     this.config = {};
     this.hass = null;
+    this._dataLoaded = false;
+  }
+
+  _storageKey() {
+    return 'ha-chore-tracker-' + (this.config.storage_key || 'default');
+  }
+
+  _saveData() {
+    try {
+      localStorage.setItem(this._storageKey(), JSON.stringify(this.chores));
+    } catch(e) { /* storage full or unavailable */ }
+  }
+
+  _loadData() {
+    if (this._dataLoaded) return;
+    try {
+      const saved = localStorage.getItem(this._storageKey());
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          this.chores = parsed.map(c => ({
+            ...c,
+            lastCompleted: c.lastCompleted ? new Date(c.lastCompleted) : null
+          }));
+        }
+      }
+    } catch(e) { /* parse error */ }
+    this._dataLoaded = true;
   }
 
   setConfig(config) {
     if (!config) return;
     this.config = config;
     this.members = config.members || [{ name: 'Person 1', color: '#4CAF50' }];
+    this._loadData();
     this.render();
   }
 
@@ -1094,6 +1123,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     };
 
     this.chores.push(chore);
+    this._saveData();
     this.shadowRoot.getElementById('chore-name').value = '';
     this.updateBoard();
   }
@@ -1116,11 +1146,13 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       chore.status = statuses[currentIndex - 1];
     }
 
+    this._saveData();
     this.updateBoard();
   }
 
   deleteChore(choreId) {
     this.chores = this.chores.filter(c => c.id != choreId);
+    this._saveData();
     this.updateBoard();
   }
 
