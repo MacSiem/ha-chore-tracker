@@ -1,7 +1,515 @@
+/* HA Tools split — ha-chore-tracker v4.0.0 (2026-05-10) — single-tool standalone repo */
+(function() {
+'use strict';
+
+// XSS protection helper (reuse global from panel, fallback for standalone)
+const _esc = window._haToolsEsc || ((s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? ''));
+
+// -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
+window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-chore-tracker-' + k, JSON.stringify(d)); } catch(e) { console.debug('[ha-chore-tracker] caught:', e); } }, async load(k) { try { const r = localStorage.getItem('ha-chore-tracker-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-chore-tracker-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
+
+
+/* ===== HA Tools split — inline shared infrastructure ===== */
+// Bento Design System CSS (inline copy — keeps tool standalone)
+if (typeof window !== 'undefined' && !window.HAToolsBentoCSS) {
+  window.HAToolsBentoCSS = `
+/* ═══════════════════════════════════════════════
+   HA Tools — Bento Design System v1.0
+   ═══════════════════════════════════════════════ */
+
+/* ── CSS Custom Properties ───────────────────── */
+:host {
+  /* Primary palette */
+  --bento-primary: #3B82F6;
+  --bento-primary-hover: #2563EB;
+  --bento-primary-light: rgba(59, 130, 246, 0.08);
+  --bento-success: #10B981;
+  --bento-success-light: rgba(16, 185, 129, 0.08);
+  --bento-error: #EF4444;
+  --bento-error-light: rgba(239, 68, 68, 0.08);
+  --bento-warning: #F59E0B;
+  --bento-warning-light: rgba(245, 158, 11, 0.08);
+
+  /* Theme — maps to HA theme vars with light fallbacks */
+  --bento-bg: var(--primary-background-color, #F8FAFC);
+  --bento-card: var(--card-background-color, #FFFFFF);
+  --bento-border: var(--divider-color, #E2E8F0);
+  --bento-text: var(--primary-text-color, #1E293B);
+  --bento-text-secondary: var(--secondary-text-color, #64748B);
+  --bento-text-muted: var(--disabled-text-color, #94A3B8);
+
+  /* Radii */
+  --bento-radius-xs: 6px;
+  --bento-radius-sm: 10px;
+  --bento-radius-md: 16px;
+
+  /* Shadows */
+  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
+  --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
+  --bento-shadow-lg: 0 8px 25px rgba(0,0,0,0.06), 0 4px 10px rgba(0,0,0,0.04);
+
+  /* Transition */
+  --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Typography */
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  display: block;
+  color: var(--bento-text);
+}
+
+/* ── Dark mode ───────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  :host {
+    --bento-bg: var(--primary-background-color, #1a1a2e);
+    --bento-card: var(--card-background-color, #16213e);
+    --bento-border: var(--divider-color, #2a2a4a);
+    --bento-text: var(--primary-text-color, #e0e0e0);
+    --bento-text-secondary: var(--secondary-text-color, #a0a0b0);
+    --bento-text-muted: var(--disabled-text-color, #6a6a7a);
+    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+    --bento-primary-light: rgba(59,130,246,0.15);
+    --bento-success-light: rgba(16,185,129,0.15);
+    --bento-error-light: rgba(239,68,68,0.15);
+    --bento-warning-light: rgba(245,158,11,0.15);
+    color-scheme: dark !important;
+  }
+  .card, .card-container, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
+    background: var(--bento-card) !important; color: var(--bento-text) !important; border-color: var(--bento-border) !important;
+  }
+  input, select, textarea { background: var(--bento-bg); color: var(--bento-text); border-color: var(--bento-border); }
+  .stat, .stat-card, .summary-card, .metric-card, .kpi-card, .health-card { background: var(--bento-bg); border-color: var(--bento-border); }
+  .tab-content, .section { color: var(--bento-text); }
+  table th { background: var(--bento-bg); color: var(--bento-text-secondary); border-color: var(--bento-border); }
+  table td { color: var(--bento-text); border-color: var(--bento-border); }
+  tr:hover td { background: rgba(59,130,246,0.08); }
+  .empty-state, .no-data { color: var(--bento-text-secondary); }
+  .schedule-section, .settings-section, .detail-panel, .details, .device-detail { background: var(--bento-bg); border-color: var(--bento-border); }
+  .addon-list, .content-item { background: rgba(255,255,255,0.05); }
+  .chart-container { background: var(--bento-bg); border-color: var(--bento-border); }
+  pre, code { background: #1e293b !important; color: #e2e8f0 !important; }
+}
+
+/* ── Reset ───────────────────────────────────── */
+* { box-sizing: border-box; }
+
+/* ── Main Card Wrapper ───────────────────────── */
+.card {
+  background: var(--bento-card);
+  border: 1px solid var(--bento-border);
+  border-radius: var(--bento-radius-md);
+  box-shadow: var(--bento-shadow-sm);
+  color: var(--bento-text);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* ── Header ──────────────────────────────────── */
+.header {
+  padding: 16px 20px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.header-icon { font-size: 22px; }
+.header-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--bento-text);
+}
+.header-badge {
+  margin-left: auto;
+  background: var(--bento-border);
+  color: var(--bento-text-secondary);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 20px;
+  font-weight: 500;
+}
+.content { padding: 16px 20px 20px; }
+
+/* ── Tabs (Bento unified) ────────────────────── */
+.tabs, .tab-bar, .tab-nav, .tab-header {
+  display: flex !important;
+  gap: 4px !important;
+  border-bottom: 2px solid var(--bento-border, var(--divider-color, #334155)) !important;
+  padding: 0 4px !important;
+  margin-bottom: 20px !important;
+  overflow-x: auto !important; overflow-y: hidden !important; -webkit-overflow-scrolling: touch !important;
+  flex-wrap: nowrap !important;
+}
+.tab, .tab-btn, .tab-button, .dtab {
+  padding: 10px 18px !important;
+  border: none !important;
+  background: transparent !important;
+  cursor: pointer !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  font-family: 'Inter', sans-serif !important;
+  color: var(--bento-text-secondary, var(--secondary-text-color, #94A3B8)) !important;
+  border-bottom: 2px solid transparent !important;
+  margin-bottom: -2px !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  white-space: nowrap !important;
+  border-radius: 0 !important;
+  flex: none !important;
+}
+.tab:hover, .tab-btn:hover, .tab-button:hover, .dtab:hover {
+  color: var(--bento-primary, #3B82F6) !important;
+  background: rgba(59, 130, 246, 0.08) !important;
+}
+.tab.active, .tab-btn.active, .tab-button.active, .dtab.active {
+  color: var(--bento-primary, #3B82F6) !important;
+  border-bottom-color: var(--bento-primary, #3B82F6) !important;
+  background: rgba(59, 130, 246, 0.04) !important;
+  font-weight: 600 !important;
+}
+
+/* ── Tab content animation ───────────────────── */
+.tab-content {
+  display: block;
+}
+.tab-content.active {
+  animation: bentoFadeIn 0.3s ease-out;
+}
+@keyframes bentoFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Stat / KPI cards ────────────────────────── */
+.stat-card, .stat-item, .metric-card, .kpi-card {
+  background: var(--bento-card, var(--card-background-color, #1E293B)) !important;
+  border: 1px solid var(--bento-border, var(--divider-color, #334155)) !important;
+  border-radius: var(--bento-radius-sm, 10px) !important;
+  padding: 16px !important;
+  text-align: center !important;
+  transition: var(--bento-transition);
+}
+.stat-card:hover, .stat-item:hover, .metric-card:hover, .kpi-card:hover {
+  box-shadow: var(--bento-shadow-md);
+}
+.stat-icon { font-size: 20px; margin-bottom: 4px; }
+.stat-value, .stat-val, .metric-value, .kpi-val {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--bento-text);
+}
+.stat-label, .stat-lbl, .metric-label, .kpi-lbl {
+  font-size: 11px;
+  color: var(--bento-text-secondary);
+  margin-top: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+/* ── Overview grid (2×2 stat layout) ─────────── */
+.overview-grid, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+/* ── Section headers ─────────────────────────── */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--bento-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin: 12px 0 8px;
+}
+
+/* ── Loading / Empty / Info ──────────────────── */
+.loading-bar {
+  height: 3px;
+  background: linear-gradient(90deg, var(--bento-primary), transparent);
+  border-radius: 2px;
+  animation: bentoLoad 1s infinite;
+  margin-bottom: 8px;
+}
+@keyframes bentoLoad { 0% { background-position: 0; } 100% { background-position: 200px; } }
+
+.empty-state, .no-data, .no-results {
+  text-align: center;
+  color: var(--bento-text-secondary);
+  padding: 32px 16px;
+  font-size: 13px;
+  background: var(--bento-bg);
+  border-radius: var(--bento-radius-sm);
+}
+.info-note, .tip-box {
+  font-size: 12px;
+  color: var(--bento-text-secondary);
+  background: var(--bento-bg);
+  border-radius: var(--bento-radius-sm);
+  padding: 8px 10px;
+  border-left: 3px solid var(--bento-primary);
+  margin-top: 8px;
+}
+.last-updated {
+  font-size: 11px;
+  color: var(--bento-text-muted);
+  text-align: right;
+  margin-top: 8px;
+}
+
+/* ── Buttons ─────────────────────────────────── */
+.refresh-btn {
+  background: var(--bento-border);
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--bento-text-secondary);
+  cursor: pointer;
+  font-weight: 500;
+  transition: var(--bento-transition);
+}
+.refresh-btn:hover { background: var(--bento-primary); color: white; }
+
+.toggle-btn, .action-btn {
+  background: var(--bento-primary);
+  border: none;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 12px;
+  color: white;
+  cursor: pointer;
+  font-weight: 500;
+  transition: var(--bento-transition);
+}
+.toggle-btn:hover, .action-btn:hover { opacity: .85; }
+
+.send-btn, .btn-primary {
+  width: 100%;
+  background: var(--bento-primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--bento-transition);
+}
+.send-btn:hover, .btn-primary:hover {
+  background: var(--bento-primary-hover);
+  transform: translateY(-1px);
+}
+.send-btn:active, .btn-primary:active { transform: translateY(0); }
+.send-btn:disabled, .btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ── Badges / Status ─────────────────────────── */
+.badge, .status-badge, .tag, .chip {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-block;
+}
+.badge-ok, .badge-success { background: var(--bento-success-light); color: var(--bento-success); }
+.badge-er, .badge-error   { background: var(--bento-error-light);   color: var(--bento-error); }
+.badge-warn, .badge-warning { background: var(--bento-warning-light); color: var(--bento-warning); }
+.badge-info { background: var(--bento-primary-light); color: var(--bento-primary); }
+
+/* ── Count badges (inline) ───────────────────── */
+.count-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+.error-badge { background: rgba(239,68,68,0.13); color: var(--bento-error); }
+.warn-badge  { background: rgba(245,158,11,0.13); color: var(--bento-warning); }
+.info-badge  { background: rgba(59,130,246,0.13); color: var(--bento-primary); }
+.ok-badge    { background: rgba(16,185,129,0.13); color: var(--bento-success); }
+
+/* ── Tables ───────────────────────────────────── */
+table { width: 100%; border-collapse: separate; border-spacing: 0; }
+th {
+  background: var(--bento-bg);
+  color: var(--bento-text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 2px solid var(--bento-border);
+}
+td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--bento-border);
+  color: var(--bento-text);
+  font-size: 13px;
+}
+tr:hover td { background: var(--bento-primary-light); }
+
+/* ── Forms / Inputs ──────────────────────────── */
+input, select, textarea {
+  padding: 8px 12px;
+  border: 1.5px solid var(--bento-border);
+  border-radius: var(--bento-radius-xs);
+  background: var(--bento-card);
+  color: var(--bento-text);
+  font-size: 13px;
+  font-family: 'Inter', sans-serif;
+  transition: var(--bento-transition);
+  outline: none;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--bento-primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* ── Code blocks ─────────────────────────────── */
+code {
+  background: var(--bento-border);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+pre {
+  background: #1e293b;
+  color: #e2e8f0;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  overflow-x: auto;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── Grid layouts ────────────────────────────── */
+.schedule-grid, .send-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.schedule-card, .send-card, .info-card {
+  background: var(--bento-bg);
+  border: 1px solid var(--bento-border);
+  border-radius: var(--bento-radius-sm);
+  padding: 14px;
+}
+
+/* ── Log entries ─────────────────────────────── */
+.log-entry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 4px 6px;
+  padding: 8px;
+  border-radius: var(--bento-radius-sm);
+  margin-bottom: 4px;
+  font-size: 12px;
+  min-width: 0;
+  overflow: hidden;
+}
+.error-entry { background: var(--bento-error-light); border: 1px solid rgba(239,68,68,0.13); }
+.warn-entry  { background: var(--bento-warning-light); border: 1px solid rgba(245,158,11,0.13); }
+.log-time { color: var(--bento-text-muted); flex-shrink: 0; }
+.log-domain {
+  font-weight: 600;
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-all;
+}
+.error-domain { color: var(--bento-error); }
+.warn-domain  { color: var(--bento-warning); }
+.log-msg {
+  color: var(--bento-text-secondary);
+  flex-basis: 100%;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  min-width: 0;
+}
+
+/* ── Send status ─────────────────────────────── */
+.send-status {
+  padding: 10px 14px;
+  border-radius: var(--bento-radius-sm);
+  margin-top: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+}
+.send-status.sending { background: var(--bento-primary-light); color: var(--bento-primary); }
+.send-status.success { background: var(--bento-success-light); color: var(--bento-success); }
+.send-status.error   { background: var(--bento-error-light);   color: var(--bento-error); }
+
+/* ── Scrollbar ───────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bento-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--bento-text-muted); }
+
+/* ── Animations ──────────────────────────────── */
+@keyframes bentoSpin { to { transform: rotate(360deg); } }
+@keyframes bentoPulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
+
+/* ── Mobile — 768 px ─────────────────────────── */
+@media (max-width: 768px) {
+  .content { padding: 12px; }
+  .tabs { flex-wrap: nowrap !important; overflow-x: auto !important; -webkit-overflow-scrolling: touch !important; gap: 2px !important; }
+  .tab, .tab-button, .tab-btn { padding: 6px 10px !important; font-size: 12px !important; white-space: nowrap !important; }
+  .overview-grid, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .stat-value, .stat-val, .kpi-val, .metric-val { font-size: 18px !important; }
+  .stat-label, .stat-lbl, .kpi-lbl, .metric-lbl { font-size: 10px !important; }
+  .send-grid, .schedule-grid { grid-template-columns: 1fr; }
+  .log-entry { flex-wrap: wrap; gap: 2px 6px; }
+  .log-domain { max-width: 60%; font-size: 11px; }
+  .log-msg { flex-basis: 100%; max-width: 100%; overflow-wrap: anywhere; font-size: 11px; }
+  pre { white-space: pre-wrap; word-break: break-all; max-width: calc(100vw - 80px); overflow-x: auto; }
+  .panels, .board { flex-direction: column; }
+  .column { min-width: unset; }
+  h2 { font-size: 18px; }
+  h3 { font-size: 15px; }
+}
+
+/* ── Mobile — 480 px ─────────────────────────── */
+@media (max-width: 480px) {
+  .tabs { gap: 1px !important; }
+  .tab, .tab-button, .tab-btn { padding: 5px 8px !important; font-size: 11px !important; }
+  .overview-grid, .stats-grid, .summary-grid { grid-template-columns: 1fr 1fr; }
+  .stat-value, .stat-val, .kpi-val { font-size: 16px !important; }
+}
+`;
+}
+// XSS escape singleton (idempotent)
+if (typeof window !== 'undefined') {
+  window._haToolsEsc = window._haToolsEsc || (function(){
+    var MAP = {};
+    MAP[String.fromCharCode(38)] = '&amp;';
+    MAP[String.fromCharCode(60)] = '&lt;';
+    MAP[String.fromCharCode(62)] = '&gt;';
+    MAP[String.fromCharCode(34)] = '&quot;';
+    MAP[String.fromCharCode(39)] = '&#39;';
+    return function(s){ return typeof s === 'string' ? s.replace(/[&<>"']/g, function(c){ return MAP[c]; }) : (s == null ? '' : s); };
+  })();
+}
+/* ============================================================ */
+
 class HaChoreTracker extends HTMLElement {
   static getConfigElement() {
     return document.createElement('ha-chore-tracker-editor');
   }
+
+  getCardSize() { return 6; }
 
   static getStubConfig() {
     return {
@@ -16,7 +524,9 @@ class HaChoreTracker extends HTMLElement {
 
   constructor() {
     super();
+    this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
+    this._toolId = this.tagName.toLowerCase().replace('ha-', '');
     // --- Throttle fields ---
     this._lastRenderTime = 0;
     this._renderScheduled = false;
@@ -25,14 +535,33 @@ class HaChoreTracker extends HTMLElement {
     this._currentPage = {};
     this._pageSize = 15;
     this.chores = [];
+    this.members = [];
     this.activeTab = 'board';
     this.config = {};
     this.hass = null;
     this._dataLoaded = false;
+    this._lastHtml = '';
   }
 
   _storageKey() {
     return 'ha-chore-tracker-' + (this.config.storage_key || 'default');
+  }
+
+  _membersKey() {
+    return 'ha-chore-tracker-members-' + (this.config.storage_key || 'default');
+  }
+
+  _loadMembers() {
+    try {
+      const stored = localStorage.getItem(this._membersKey());
+      return stored ? JSON.parse(stored) : null;
+    } catch (e) { return null; }
+  }
+
+  _saveMembers() {
+    try {
+      localStorage.setItem(this._membersKey(), JSON.stringify(this.members));
+    } catch (e) { console.debug('[ha-chore-tracker] caught:', e); }
   }
 
   _saveData() {
@@ -58,16 +587,51 @@ class HaChoreTracker extends HTMLElement {
     this._dataLoaded = true;
   }
 
+
+  get _t() {
+    const T = {
+      pl: {
+        title: 'Tracker Obowiązków',
+        loading: 'Wczytywanie...',
+        noData: 'Brak danych',
+        error: 'Błąd',
+        refresh: 'Odśwież',
+        save: 'Zapisz',
+        cancel: 'Anuluj',
+        delete: 'Usu\u0144',
+        locale: 'pl-PL',
+      },
+      en: {
+        title: 'Chore Tracker',
+        loading: 'Loading...',
+        noData: 'No data',
+        error: 'Error',
+        refresh: 'Refresh',
+        save: 'Save',
+        cancel: 'Cancel',
+        delete: 'Delete',
+        locale: 'en-US',
+      },
+    };
+    return T[this._lang] || T.en;
+  }
+
   setConfig(config) {
     if (!config) return;
     this.config = config;
-    this.members = config.members || [{ name: 'Person 1', color: '#4CAF50' }];
+    const storedMembers = this._loadMembers();
+    this.members = storedMembers || config.members || [{ name: 'Person 1', color: '#4CAF50' }];
     this._loadData();
     this.render();
   }
 
+  _sanitize(str) {
+    if (!str) return str;
+    try { return decodeURIComponent(escape(str)); } catch(e) { return str; }
+  }
   set hass(hass) {
-    this._hass = hass;
+
+    if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';    this._hass = hass;
     if (!hass) return;
     const now = Date.now();
     if (!this._firstHassRender) {
@@ -76,7 +640,7 @@ class HaChoreTracker extends HTMLElement {
       this._lastRenderTime = now;
       return;
     }
-    if (now - (this._lastRenderTime || 0) < 10000) {
+    if (now - (this._lastRenderTime || 0) < 5000) {
       if (!this._renderScheduled) {
         this._renderScheduled = true;
         setTimeout(() => {
@@ -94,12 +658,97 @@ class HaChoreTracker extends HTMLElement {
   get hass() {
     return this._hass;
   }
+  _addMember() {
+    const colors = ['#4CAF50','#2196F3','#FF9800','#E91E63','#9C27B0','#00BCD4','#FF5722','#795548'];
+    const color = colors[this.members.length % colors.length];
+    this.members.push({name: 'Osoba ' + (this.members.length + 1), color: color});
+    this._saveMembers();
+    this.render();
+  }
+
+  _removeMember(idx) {
+    if (this.members.length <= 1) return;
+    const removedName = this.members[idx].name;
+    this.members.splice(idx, 1);
+    this.chores.forEach(c => { if (c.assignee === removedName) c.assignee = this.members[0].name; });
+    this._saveData();
+    this._saveMembers();
+    this.render();
+  }
+
+  _saveMemberNames() {
+    const inputs = this.shadowRoot.querySelectorAll('.member-name-input');
+    inputs.forEach(input => {
+      const idx = parseInt(input.dataset.memberIdx);
+      if (this.members[idx]) {
+        const oldName = this.members[idx].name;
+        const newName = input.value.trim() || ('Osoba ' + (idx + 1));
+        if (oldName !== newName) {
+          this.chores.forEach(c => { if (c.assignee === oldName) c.assignee = newName; });
+          this.members[idx].name = newName;
+        }
+      }
+    });
+    this._saveMembers();
+    this._saveData();
+    this.render();
+  }
+
+  _checkRecurringReset() {
+    const now = new Date();
+    let changed = false;
+    this.chores.forEach(chore => {
+      if (chore.status !== 'done' || !chore.lastCompleted) return;
+      const last = new Date(chore.lastCompleted);
+      let shouldReset = false;
+      
+      if (chore.frequency === 'daily') {
+        shouldReset = now.toDateString() !== last.toDateString();
+      } else if (chore.frequency === 'every_2_days') {
+        shouldReset = (now - last) / (1000*60*60*24) >= 2;
+      } else if (chore.frequency === 'every_3_days') {
+        shouldReset = (now - last) / (1000*60*60*24) >= 3;
+      } else if (chore.frequency === 'weekly') {
+        const diffDays = (now - last) / (1000*60*60*24);
+        shouldReset = diffDays >= 7;
+      } else if (chore.frequency === 'biweekly') {
+        const diffDays = (now - last) / (1000*60*60*24);
+        shouldReset = diffDays >= 14;
+      } else if (chore.frequency === 'monthly') {
+        shouldReset = (now.getMonth() !== last.getMonth()) || (now.getFullYear() !== last.getFullYear());
+      } else if (chore.frequency === 'once') {
+        shouldReset = false;
+      }
+      
+      if (shouldReset) {
+        chore.status = 'todo';
+        changed = true;
+      }
+    });
+    if (changed) this._saveData();
+  }
 
   render() {
-    this.shadowRoot.innerHTML = `
-      <style>
+    if (!this._hass) return;
+    if (!this.activeTab) this.activeTab = 'board';
+    this._checkRecurringReset();
+    const L = this._lang === 'pl';
+    const html = `
+      <style>${window.HAToolsBentoCSS || ""}
+/* === Support / Donation Section (HA Tools split) === */
+.donate-section { margin: 20px 0 4px; padding: 18px 20px;  background: var(--donate-bg, linear-gradient(135deg, #fff5f5 0%, #fff0f6 50%, #f8f0ff 100%));  border: 1px solid var(--donate-border, #f3d3e0); border-radius: var(--bento-radius-md, 16px);  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; }
+.donate-section h3 { margin: 0 0 6px; font-size: 15px; color: var(--donate-heading, #be185d); }
+.donate-section p  { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--donate-text, #6b21a8); }
+.donate-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+.donate-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 10px;  font-weight: 600; font-size: 12.5px; text-decoration: none; transition: transform .15s ease, box-shadow .15s ease; }
+.donate-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
+.donate-btn.coffee { background: #FFDD00; color: #000; border: 1px solid #e6c700; }
+.donate-btn.paypal { background: #0070ba; color: #fff; border: 1px solid #005ea6; }
+@media (prefers-color-scheme: dark) {  .donate-section { background: linear-gradient(135deg, #2a1525 0%, #1e1530 50%, #251530 100%); border-color: #4a3555; }  .donate-section h3 { color: #f0c0d8; }  .donate-section p  { color: #d4a0b8; }  .donate-btn.coffee { background: #b8a100; color: #fff; border-color: #8a7a00; }  .donate-btn.paypal { background: #005a96; color: #e0f0ff; border-color: #004a7a; } }
+@media (max-width: 600px) {  .donate-section { flex-direction: column; text-align: center; padding: 16px; }  .donate-buttons { justify-content: center; } }
+
+
 /* ===== BENTO LIGHT MODE DESIGN SYSTEM ===== */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 :host {
   --bento-primary: #3B82F6;
@@ -111,12 +760,12 @@ class HaChoreTracker extends HTMLElement {
   --bento-error-light: rgba(239, 68, 68, 0.08);
   --bento-warning: #F59E0B;
   --bento-warning-light: rgba(245, 158, 11, 0.08);
-  --bento-bg: #F8FAFC;
-  --bento-card: #FFFFFF;
-  --bento-border: #E2E8F0;
-  --bento-text: #1E293B;
-  --bento-text-secondary: #64748B;
-  --bento-text-muted: #94A3B8;
+  --bento-bg: var(--primary-background-color, #F8FAFC);
+  --bento-card: var(--card-background-color, #FFFFFF);
+  --bento-border: var(--divider-color, #E2E8F0);
+  --bento-text: var(--primary-text-color, #1E293B);
+  --bento-text-secondary: var(--secondary-text-color, #64748B);
+  --bento-text-muted: var(--disabled-text-color, #94A3B8);
   --bento-radius-xs: 6px;
   --bento-radius-sm: 10px;
   --bento-radius-md: 16px;
@@ -125,25 +774,6 @@ class HaChoreTracker extends HTMLElement {
   --bento-shadow-lg: 0 8px 25px rgba(0,0,0,0.06), 0 4px 10px rgba(0,0,0,0.04);
   --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-}
-@media (prefers-color-scheme: dark) {
-  :host {
-    --bento-bg: #1a1a2e;
-    --bento-card: #16213e;
-    --bento-text: #e2e8f0;
-    --bento-text-secondary: #94a3b8;
-    --bento-border: #334155;
-    --bento-success: #34d399;
-    --bento-warning: #fbbf24;
-    --bento-error: #f87171;
-  }
-}
-:host-context([data-themes]) {
-  --bento-bg: var(--lovelace-background, var(--primary-background-color, #F8FAFC));
-  --bento-card: var(--card-background-color, var(--ha-card-background, #FFFFFF));
-  --bento-text: var(--primary-text-color, #1E293B);
-  --bento-text-secondary: var(--secondary-text-color, #64748B);
-  --bento-border: var(--divider-color, #E2E8F0);
 }
 
 /* Card */
@@ -154,7 +784,8 @@ class HaChoreTracker extends HTMLElement {
   box-shadow: var(--bento-shadow-sm) !important;
   font-family: 'Inter', sans-serif !important;
   color: var(--bento-text) !important;
-  overflow: hidden;
+  overflow: visible;
+  padding: 20px;
 }
 
 /* Headers */
@@ -331,10 +962,10 @@ canvas {
         }
 
         :host {
-          --primary-color: var(--ha-card-background, #ffffff);
-          --text-color: var(--primary-text-color, #212121);
-          --secondary-text: var(--secondary-text-color, #727272);
-          --border-color: var(--divider-color, #e0e0e0);
+          --primary-color: var(--bento-card);
+          --text-color: var(--bento-text);
+          --secondary-text: var(--bento-text-secondary);
+          --border-color: var(--bento-border);
           --ha-card-border-radius: 12px;
         }
 
@@ -367,6 +998,8 @@ canvas {
           gap: 8px;
           margin-bottom: 16px;
           border-bottom: 1px solid var(--border-color);
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
         }
 
         .tab-btn {
@@ -401,7 +1034,7 @@ canvas {
         /* Board View */
         .board {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
           gap: 16px;
         }
 
@@ -409,7 +1042,7 @@ canvas {
           background: var(--ha-card-background, #f5f5f5);
           border-radius: 8px;
           padding: 12px;
-          min-height: 400px;
+          min-height: 80px;
         }
 
         .column-header {
@@ -519,6 +1152,10 @@ canvas {
           margin-bottom: 12px;
         }
 
+        @media (max-width: 360px) {
+          .form-group { grid-template-columns: 1fr; }
+        }
+
         .form-group.full {
           grid-column: 1 / -1;
         }
@@ -535,6 +1172,7 @@ canvas {
         input[type="number"],
         select {
           width: 100%;
+          box-sizing: border-box;
           padding: 8px;
           border: 1px solid var(--border-color);
           border-radius: 4px;
@@ -687,23 +1325,20 @@ canvas {
       
 /* === Modern Bento Light Mode === */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
 :host {
-  --bento-bg: #F8FAFC;
-  --bento-card: #FFFFFF;
+  --bento-bg: var(--primary-background-color, #F8FAFC);
+  --bento-card: var(--card-background-color, #FFFFFF);
   --bento-primary: #3B82F6;
   --bento-primary-hover: #2563EB;
-  --bento-text: #1E293B;
-  --bento-text-secondary: #64748B;
-  --bento-border: #E2E8F0;
+  --bento-text: var(--primary-text-color, #1E293B);
+  --bento-text-secondary: var(--secondary-text-color, #64748B);
+  --bento-border: var(--divider-color, #E2E8F0);
   --bento-success: #10B981;
   --bento-warning: #F59E0B;
   --bento-error: #EF4444;
-  --bento-radius: 16px;
   --bento-radius-sm: 10px;
   --bento-radius-xs: 6px;
-  --bento-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
+  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
   --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.06);
   --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: block;
@@ -712,7 +1347,7 @@ canvas {
 * { box-sizing: border-box; }
 
 .card, .card-container, .reports-card, .export-card {
-  background: var(--bento-card); border-radius: var(--bento-radius); box-shadow: var(--bento-shadow);
+  background: var(--bento-card); border-radius: var(--bento-radius-sm); box-shadow: var(--bento-shadow-sm);
   padding: 28px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: var(--bento-text); border: 1px solid var(--bento-border); animation: fadeSlideIn 0.4s ease-out;
 }
@@ -782,7 +1417,7 @@ textarea { min-height: 80px; resize: vertical; }
 .status-zone, .severity-info, .badge-info { background: rgba(59, 130, 246, 0.1); color: var(--bento-primary); }
 
 .alert-item { padding: 14px 18px; border-left: 4px solid var(--bento-border); border-radius: 0 var(--bento-radius-sm) var(--bento-radius-sm) 0; margin-bottom: 10px; background: var(--bento-bg); display: flex; justify-content: space-between; align-items: center; transition: var(--bento-transition); }
-.alert-item:hover { box-shadow: var(--bento-shadow); }
+.alert-item:hover { box-shadow: var(--bento-shadow-sm); }
 .alert-critical { border-color: var(--bento-error); background: rgba(239, 68, 68, 0.04); }
 .alert-warning { border-color: var(--bento-warning); background: rgba(245, 158, 11, 0.04); }
 .alert-info { border-color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
@@ -975,6 +1610,40 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   .column { min-width: unset; }
 }
 
+
+@media (prefers-color-scheme: dark) {
+  :host {
+    --bento-bg: var(--primary-background-color, #1a1a2e);
+    --bento-card: var(--card-background-color, #16213e);
+    --bento-text: var(--primary-text-color, #e2e8f0);
+    --bento-text-secondary: var(--secondary-text-color, #94a3b8);
+    --bento-border: var(--divider-color, #334155);
+    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  }
+}
+/* === DARK MODE ADDED - old comment below === */
+
+        /* === MOBILE FIX === */
+        @media (max-width: 768px) {
+          .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
+          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .card, .card-container { padding: 14px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+          .stat-val, .kpi-val, .metric-val { font-size: 18px; }
+          .stat-lbl, .kpi-lbl, .metric-lbl { font-size: 10px; }
+          .panels, .board { flex-direction: column; }
+          .column { min-width: unset; }
+          h2 { font-size: 18px; }
+          h3 { font-size: 15px; }
+        }
+        @media (max-width: 480px) {
+          .tabs { gap: 1px; }
+          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
+          .stat-val, .kpi-val, .metric-val { font-size: 16px; }
+        }
+
 </style>
 
       <div class="card">
@@ -983,13 +1652,14 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         </div>
 
         <div class="tabs">
-          <button class="tab-btn active" data-tab="board">📋 Board</button>
-          <button class="tab-btn" data-tab="schedule">📅 Schedule</button>
-          <button class="tab-btn" data-tab="stats">🏆 Stats</button>
+          <button class="tab-btn ${this.activeTab === 'board' ? 'active' : ''}" data-tab="board">📋 Board</button>
+          <button class="tab-btn ${this.activeTab === 'schedule' ? 'active' : ''}" data-tab="schedule">📅 Schedule</button>
+          <button class="tab-btn ${this.activeTab === 'stats' ? 'active' : ''}" data-tab="stats">🏆 Stats</button>
+          <button class="tab-btn ${this.activeTab === 'settings' ? 'active' : ''}" data-tab="settings">\u2699\uFE0F ${this._lang === 'pl' ? 'Ustawienia' : 'Settings'}</button>
         </div>
 
         <!-- Board Tab -->
-        <div class="tab-content active" id="board-tab">
+        <div class="tab-content${this.activeTab === 'board' ? ' active' : ''}" id="board-tab" style="display:${this.activeTab === 'board' ? 'block' : 'none'}">
           <div class="add-form">
             <div class="form-group full">
               <label>Chore Name</label>
@@ -1000,7 +1670,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
               <div>
                 <label>Assignee</label>
                 <select id="chore-assignee">
-                  ${this.members.map(m => `<option value="${m.name}">${m.name}</option>`).join('')}
+                  ${this.members.map(m => `<option value="${_esc(m.name)}">${_esc(m.name)}</option>`).join('')}
                 </select>
               </div>
               <div>
@@ -1020,10 +1690,13 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
               <div>
                 <label>Frequency</label>
                 <select id="chore-frequency">
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="biweekly">Bi-weekly</option>
-                  <option value="monthly">Monthly</option>
+                  <option value="daily">Codziennie</option>
+            <option value="every_2_days">Co 2 dni</option>
+            <option value="every_3_days">Co 3 dni</option>
+            <option value="weekly">Co tydzień</option>
+            <option value="biweekly">Co 2 tygodnie</option>
+            <option value="monthly">Co miesiąc</option>
+            <option value="once">Jednorazowe</option>
                 </select>
               </div>
               <div>
@@ -1042,43 +1715,67 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           <div class="board" id="board">
             <div class="column" data-status="todo">
               <div class="column-header">
-                <span>📝 To Do</span>
+                <span>\uD83D\uDCDD To Do</span>
                 <div class="column-count">0</div>
               </div>
             </div>
             <div class="column" data-status="in-progress">
               <div class="column-header">
-                <span>⏳ In Progress</span>
+                <span>\u23F3 In Progress</span>
                 <div class="column-count">0</div>
               </div>
             </div>
             <div class="column" data-status="done">
               <div class="column-header">
-                <span>✅ Done</span>
+                <span>\u2705 Done</span>
                 <div class="column-count">0</div>
               </div>
             </div>
           </div>
+          <div id="empty-board" class="empty-state" style="display:none;">
+            <div class="empty-icon">\uD83D\uDCCB</div>
+            <h3 style="margin:8px 0 4px;font-size:16px;color:var(--bento-text,#333);">${L ? 'Brak zada\u0144' : 'No chores yet'}</h3>
+            <p style="margin:0 0 16px;max-width:280px;">${L ? 'Dodaj pierwsze zadanie u\u017Cywaj\u0105c formularza powy\u017Cej.' : 'Add your first chore using the form above.'}</p>
+          </div>
         </div>
 
         <!-- Schedule Tab -->
-        <div class="tab-content" id="schedule-tab">
+        <div class="tab-content${this.activeTab === 'schedule' ? ' active' : ''}" id="schedule-tab" style="display:${this.activeTab === 'schedule' ? 'block' : 'none'}">
           <div class="schedule" id="schedule"></div>
           <div id="empty-schedule" class="empty-state" style="display:none;">
-            📭 No chores scheduled yet. Add chores to see the weekly schedule.
+            <div class="empty-icon">📅</div>
+            <h3 style="margin:8px 0 4px;font-size:16px;color:var(--bento-text,#333);">${L ? 'Brak harmonogramu' : 'No Schedule Yet'}</h3>
+            <p style="margin:0 0 16px;max-width:280px;">${L ? 'Dodaj zadania z przypisanymi dniami, aby zobaczy\u0107 tygodniowy harmonogram.' : 'Add chores with assigned days to see your weekly schedule here.'}</p>
           </div>
         </div>
 
         <!-- Stats Tab -->
-        <div class="tab-content" id="stats-tab">
+        <div class="tab-content${this.activeTab === 'stats' ? ' active' : ''}" id="stats-tab" style="display:${this.activeTab === 'stats' ? 'block' : 'none'}">
           <div class="stats-container" id="stats-container"></div>
           <div class="leaderboard" id="leaderboard"></div>
           <div id="empty-stats" class="empty-state" style="display:none;">
-            📊 No statistics available yet. Complete chores to see stats.
+            <div class="empty-icon">📊</div>
+            <h3 style="margin:8px 0 4px;font-size:16px;color:var(--bento-text,#333);">No Stats Yet</h3>
+            <p style="margin:0 0 16px;max-width:280px;">Complete some chores and check back — your productivity stats will appear here.</p>
+          </div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div class="tab-content${this.activeTab === 'settings' ? ' active' : ''}" id="settings-tab" style="display:${this.activeTab === 'settings' ? 'block' : 'none'}">
+          <div style="padding:20px;">
+            <h3 style="margin:0 0 16px;font-size:16px;color:var(--bento-text,#333);">⚙️ ${this._lang === 'pl' ? 'Ustawienia' : 'Settings'}</h3>
+            <div class="empty-state">
+              <div class="empty-icon">🔧</div>
+              <p style="margin:8px 0;color:var(--bento-text-secondary,#64748b);">${this._lang === 'pl' ? 'Ustawienia będą dostępne wkrótce' : 'Settings coming soon'}</p>
+            </div>
           </div>
         </div>
       </div>
     `;
+
+    if (this._lastHtml === html) return;
+    this._lastHtml = html;
+    this.shadowRoot.innerHTML = html;
 
     this.setupEventListeners();
     this.updateBoard();
@@ -1090,8 +1787,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       btn.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
     });
 
-    // Add chore
-    this.shadowRoot.getElementById('add-btn').addEventListener('click', () => this.addChore());
+    // Add chore (only exists on board tab)
+    this.shadowRoot.getElementById('add-btn')?.addEventListener('click', () => this.addChore());
 
     // Board column clicks
     this.shadowRoot.querySelectorAll('.column').forEach(col => {
@@ -1108,13 +1805,23 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   }
 
   switchTab(tabName) {
+    if (!tabName) return;
     this.activeTab = tabName;
-    this.shadowRoot.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-    this.shadowRoot.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-
-    this.shadowRoot.getElementById(`${tabName}-tab`).classList.add('active');
-    this.shadowRoot.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
-
+    history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this.activeTab);
+    // Toggle tab buttons
+    this.shadowRoot.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.tab === tabName);
+    });
+    // Toggle tab content visibility
+    ['board', 'schedule', 'stats', 'settings'].forEach(t => {
+      const el = this.shadowRoot.getElementById(t + '-tab');
+      if (el) {
+        el.style.display = t === tabName ? 'block' : 'none';
+        el.classList.toggle('active', t === tabName);
+      }
+    });
+    // Refresh data for visible tab
+    if (tabName === 'board') this.updateBoard();
     if (tabName === 'schedule') this.updateSchedule();
     if (tabName === 'stats') this.updateStats();
   }
@@ -1184,9 +1891,9 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
       const cardsHtml = choreCards.map(chore => `
         <div class="chore-card priority-${chore.priority}" data-id="${chore.id}">
-          <h3 class="chore-title">${chore.name}</h3>
+          <h3 class="chore-title">${_esc(chore.name)}</h3>
           <div class="chore-meta">
-            <span class="chore-assignee" style="background-color: ${this.getMemberColor(chore.assignee)}">${chore.assignee}</span>
+            <span class="chore-assignee" style="background-color: ${this.getMemberColor(chore.assignee)}">${_esc(chore.assignee)}</span>
             <span>${this.getRoomEmoji(chore.room)}</span>
           </div>
           <div style="font-size: 11px; color: var(--secondary-text); margin-top: 6px;">
@@ -1195,7 +1902,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           <div class="chore-actions">
             ${status !== 'done' ? `<button class="btn-small" data-action="next">Next →</button>` : ''}
             ${status !== 'todo' ? `<button class="btn-small" data-action="prev">← Back</button>` : ''}
-            <button class="btn-small" data-action="delete">🗑️</button>
+            <button class="btn-small" data-action="delete" aria-label="${this._t.delete}">🗑️</button>
           </div>
         </div>
       `).join('');
@@ -1208,6 +1915,11 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
       column.insertAdjacentHTML('beforeend', cardsHtml);
     });
+    // Toggle empty state
+    const emptyBoard = this.shadowRoot.getElementById('empty-board');
+    const boardEl = this.shadowRoot.getElementById('board');
+    if (emptyBoard) emptyBoard.style.display = this.chores.length === 0 ? 'block' : 'none';
+    if (boardEl) boardEl.style.display = this.chores.length === 0 ? 'none' : 'grid';
   }
 
   updateSchedule() {
@@ -1232,10 +1944,10 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     });
 
     this.chores.forEach(chore => {
-      html += `<div class="week-cell"><strong>${chore.name}</strong></div>`;
+      html += `<div class="week-cell"><strong>${_esc(chore.name)}</strong></div>`;
       days.forEach((_, index) => {
         const show = this.isChoreOnDay(chore, index);
-        html += `<div class="week-cell">${show ? `<div class="chore-item">${chore.room}</div>` : ''}</div>`;
+        html += `<div class="week-cell">${show ? `<div class="chore-item">${_esc(chore.room)}</div>` : ''}</div>`;
       });
     });
 
@@ -1307,7 +2019,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     leaderboardEl.innerHTML = sortedMembers.map((entry, index) => `
       <div class="leaderboard-row">
         <div class="rank">#${index + 1}</div>
-        <div class="name">${entry[0]}</div>
+        <div class="name">${_esc(entry[0])}</div>
         <div class="completion">${entry[1].completed} done</div>
         <div class="streak">🔥 ${entry[1].streak}</div>
       </div>
@@ -1386,6 +2098,58 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     });
   }
 
+  disconnectedCallback() {
+    // Clear render scheduling flag to prevent orphaned setTimeout calls
+    this._renderScheduled = false;
+  }
+
+  setActiveTab(tabId) {
+    this.activeTab = tabId;
+    this.render();
+  }
 }
 
-customElements.define('ha-chore-tracker', HaChoreTracker);
+if (!customElements.get('ha-chore-tracker')) customElements.define('ha-chore-tracker', HaChoreTracker);
+
+class HaChoreTrackerEditor extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this._config = {};
+  }
+  setConfig(config) {
+    this._config = { ...config };
+    this._render();
+  }
+  _dispatch() {
+    this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config }, bubbles: true, composed: true }));
+  }
+  _render() {
+    this.shadowRoot.innerHTML = `
+      <style>
+            :host { display:block; padding:16px; }
+            h3 { margin:0 0 16px; font-size:15px; font-weight:600; color:var(--bento-text, var(--primary-text-color,#1e293b)); }
+            input { outline:none; transition:border-color .2s; }
+            input:focus { border-color:var(--bento-primary, var(--primary-color,#3b82f6)); }
+        </style>
+      <h3>Chore Tracker</h3>
+            <div style="margin-bottom:12px;">
+              <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
+              <input type="text" id="cf_title" value="${_esc(this._config?.title || 'Chore Tracker')}"
+                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
+            </div>
+    `;
+        const f_title = this.shadowRoot.querySelector('#cf_title');
+        if (f_title) f_title.addEventListener('input', (e) => {
+          this._config = { ...this._config, title: e.target.value };
+          this._dispatch();
+        });
+  }
+  connectedCallback() { this._render(); }
+}
+if (!customElements.get('ha-chore-tracker-editor')) { customElements.define('ha-chore-tracker-editor', HaChoreTrackerEditor); }
+
+})();
+
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-chore-tracker', name: 'Chore Tracker', description: 'Track household chores and responsibilities', preview: false });
