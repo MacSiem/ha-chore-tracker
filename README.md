@@ -1,4 +1,22 @@
-# 🏠 Chore Tracker
+# 🏠 Chore Tracker — DEPRECATED
+
+> ## ⚠️ This repo is deprecated and will be archived
+>
+> **Why:** Chore Tracker is a browser-only family-task app — it does not call any
+> HA service or write to HA state, so HACS reviewers correctly flagged it as
+> **out-of-scope for HACS**. Persisting family data in `localStorage` also means
+> it is silently lost when the browser cache is cleared, which is the wrong
+> trade-off for a chore tracker.
+>
+> **HACS status:** [PR #6258](https://github.com/hacs/default/pull/6258) was closed by HACS reviewers for the reasons above.
+>
+> **What to use instead:** a dedicated chore app (e.g. Sweepy, OurChores, or a
+> simple shared note in Google Keep / Apple Reminders). Future direction for this
+> idea would be a standalone PWA, not a HACS plugin.
+>
+> Existing installs will continue to work as-is, but no further updates will be
+> published. **Back up your chore history from the browser's `localStorage`
+> (key prefix `ha-chore-tracker-…`) if you want to keep it.**
 
 ![Preview](banner.png)
 
