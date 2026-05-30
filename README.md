@@ -61,14 +61,12 @@ After restart, **Chore Tracker** appears in the HA sidebar.
 - Track household chores, who did what and when.
 - Bundled Bento Design System (light + dark mode, mobile-friendly)
 - Self-contained — no shared HA Tools dependency
-- HA `frontend/set_user_data` cross-device persistence (with `localStorage` cache fallback)
-
+- Tool settings and dismissed-banner state are cached in browser `localStorage`
 ## Privacy
 
 - No telemetry, no analytics, no tracking
 - No external network calls, no CDN-hosted assets (system fonts only)
-- All data stays on your Home Assistant instance
-
+- No data leaves your device (no external network calls)
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md).
